@@ -1,0 +1,15 @@
+{
+  "name": "affinityhub",
+  "version": "1.1.0",
+  "private": true,
+  "description": "AffinityHub with server-side file upload and persistent storage",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "multer": "^2.0.0"
+  }
+}

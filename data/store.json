@@ -1,0 +1,217 @@
+{
+  "config": {
+    "name": "캐릭터",
+    "initAffection": 50,
+    "image": {
+      "width": 320,
+      "height": 600,
+      "x": 50,
+      "y": 80,
+      "scale": 2,
+      "valign": "flex-end"
+    },
+    "emotionImages": {
+      "normal": "/uploads/1777038406208-7.png",
+      "happy": "/uploads/1777038406208-7.png",
+      "shy": "/uploads/1777038406208-7.png",
+      "blush": "/uploads/1777038406208-7.png",
+      "surprised": "/uploads/1777038406208-7.png",
+      "sad": "/uploads/1777038406208-7.png"
+    },
+    "theme": {
+      "mainColor": "#e87c8d",
+      "subColor": "#ffb6c1",
+      "bgColor": "#fff0f5",
+      "textColor": "#5a3a3a",
+      "bgImage": ""
+    },
+    "hotspots": [
+      {
+        "part": "head",
+        "label": "머리",
+        "top": 0,
+        "left": 22,
+        "width": 56,
+        "height": 27,
+        "side": false
+      },
+      {
+        "part": "shoulder",
+        "label": "어깨",
+        "top": 35,
+        "left": 5,
+        "width": 90,
+        "height": 14,
+        "side": false
+      },
+      {
+        "part": "chest",
+        "label": "가슴",
+        "top": 36,
+        "left": 20,
+        "width": 60,
+        "height": 18,
+        "side": false
+      },
+      {
+        "part": "waist",
+        "label": "허리",
+        "top": 54,
+        "left": 22,
+        "width": 56,
+        "height": 13,
+        "side": false
+      },
+      {
+        "part": "handL",
+        "label": "손(좌)",
+        "top": 47,
+        "left": 0,
+        "width": 20,
+        "height": 16,
+        "side": false
+      },
+      {
+        "part": "handR",
+        "label": "손(우)",
+        "top": 47,
+        "left": 80,
+        "width": 20,
+        "height": 16,
+        "side": false
+      },
+      {
+        "part": "leg",
+        "label": "다리",
+        "top": 78,
+        "left": 15,
+        "width": 70,
+        "height": 22,
+        "side": false
+      }
+    ],
+    "scripts": {
+      "head": [
+        {
+          "text": "머리 클릭에 대한 반응1",
+          "delta": -3,
+          "emotion": "shy"
+        },
+        {
+          "text": "머리 클릭에 대한 반응2",
+          "delta": -2,
+          "emotion": "surprised"
+        },
+        {
+          "text": "머리 클릭에 대한 반응3",
+          "delta": 5,
+          "emotion": "blush"
+        }
+      ],
+      "shoulder": [
+        {
+          "text": "어깨 클릭에 대한 반응1",
+          "delta": 2,
+          "emotion": "happy"
+        },
+        {
+          "text": "어깨 클릭에 대한 반응2",
+          "delta": 1,
+          "emotion": "shy"
+        },
+        {
+          "text": "어깨 클릭에 대한 반응3",
+          "delta": -1,
+          "emotion": "blush"
+        }
+      ],
+      "chest": [
+        {
+          "text": "가슴 클릭에 대한 반응1",
+          "delta": -8,
+          "emotion": "surprised"
+        },
+        {
+          "text": "가슴 클릭에 대한 반응2",
+          "delta": -5,
+          "emotion": "sad"
+        },
+        {
+          "text": "가슴 클릭에 대한 반응3",
+          "delta": -3,
+          "emotion": "shy"
+        }
+      ],
+      "waist": [
+        {
+          "text": "허리 클릭에 대한 반응1",
+          "delta": 1,
+          "emotion": "shy"
+        },
+        {
+          "text": "허리 클릭에 대한 반응2",
+          "delta": 2,
+          "emotion": "blush"
+        },
+        {
+          "text": "허리 클릭에 대한 반응3",
+          "delta": -2,
+          "emotion": "surprised"
+        }
+      ],
+      "handL": [
+        {
+          "text": "왼손 클릭에 대한 반응1",
+          "delta": 4,
+          "emotion": "happy"
+        },
+        {
+          "text": "왼손 클릭에 대한 반응2",
+          "delta": 6,
+          "emotion": "blush"
+        },
+        {
+          "text": "왼손 클릭에 대한 반응3",
+          "delta": 3,
+          "emotion": "happy"
+        }
+      ],
+      "handR": [
+        {
+          "text": "오른손 클릭에 대한 반응1",
+          "delta": 4,
+          "emotion": "happy"
+        },
+        {
+          "text": "오른손 클릭에 대한 반응2",
+          "delta": 5,
+          "emotion": "blush"
+        },
+        {
+          "text": "오른손 클릭에 대한 반응3",
+          "delta": 2,
+          "emotion": "shy"
+        }
+      ],
+      "leg": [
+        {
+          "text": "다리 클릭에 대한 반응1",
+          "delta": -5,
+          "emotion": "sad"
+        },
+        {
+          "text": "다리 클릭에 대한 반응2",
+          "delta": -3,
+          "emotion": "shy"
+        },
+        {
+          "text": "다리 클릭에 대한 반응3",
+          "delta": -4,
+          "emotion": "surprised"
+        }
+      ]
+    }
+  },
+  "affection": 35,
+  "updatedAt": "2026-04-24T13:48:07.397Z"
+}

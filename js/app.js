@@ -11,25 +11,25 @@ const DEFAULT_CONFIG = {
   image: {
     width: 320,
     height: 600,
-    x: 50,      // left 기준 %
-    y: 50,      // top 기준 % (사용 여부에 따라 적용)
+    x: 50,
+    y: 50,
     scale: 1.0,
     valign: 'flex-end'
   },
   emotionImages: {
-    normal:    '',
-    happy:     '',
-    shy:       '',
-    blush:     '',
+    normal: '',
+    happy: '',
+    shy: '',
+    blush: '',
     surprised: '',
-    sad:       ''
+    sad: ''
   },
   theme: {
-    mainColor:  '#e87c8d',
-    subColor:   '#ffb6c1',
-    bgColor:    '#fff0f5',
-    textColor:  '#5a3a3a',
-    bgImage:    ''
+    mainColor: '#e87c8d',
+    subColor: '#ffb6c1',
+    bgColor: '#fff0f5',
+    textColor: '#5a3a3a',
+    bgImage: ''
   },
   hotspots: [
     { part:'head',     label:'머리',  top: 0,  left:22, width:56, height:27, side:false },
@@ -90,69 +90,187 @@ const PART_META = {
   leg:      { label:'다리',   icon:'⚡', anim:'shake'  }
 };
 
-const EMOTION_LIST = ['normal','happy','shy','blush','surprised','sad'];
+const EMOTION_LIST = ['normal', 'happy', 'shy', 'blush', 'surprised', 'sad'];
 const AFFECTION_STAGES = [
-  { min:0,  max:19,  label:'냉랭함',  color:'#8ab4e8' },
-  { min:20, max:39,  label:'어색함',  color:'#a0d0c8' },
-  { min:40, max:59,  label:'보통',    color:'#e8b86d' },
-  { min:60, max:79,  label:'친근함',  color:'#f08060' },
-  { min:80, max:100, label:'최고!',   color:'#e87c8d' }
+  { min:0,  max:19,  label:'냉랭함', color:'#8ab4e8' },
+  { min:20, max:39,  label:'어색함', color:'#a0d0c8' },
+  { min:40, max:59,  label:'보통',   color:'#e8b86d' },
+  { min:60, max:79,  label:'친근함', color:'#f08060' },
+  { min:80, max:100, label:'최고!',  color:'#e87c8d' }
 ];
+
+const STORAGE_KEYS = {
+  config: 'charInteract_config',
+  affection: 'charInteract_affection'
+};
+const API_BASE = '/api';
 
 /* =============================================
    상태 변수
    ============================================= */
-let cfg = JSON.parse(JSON.stringify(DEFAULT_CONFIG)); // deep copy
+let cfg = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 let affection = cfg.initAffection;
-let scriptIndex = {};     // 각 파트별 순환 인덱스
+let scriptIndex = {};
 let currentEmotion = 'normal';
 let typingTimer = null;
 let hotspotEditMode = false;
 let isDragging = false;
+let persistenceMode = 'browser';
+let serverSaveTimer = null;
+let pendingUploadTarget = null;
+let isSavingToServer = false;
 
 /* =============================================
    초기화
    ============================================= */
-window.addEventListener('DOMContentLoaded', () => {
-  loadFromStorage();
-  affection = getStoredAffection();
+window.addEventListener('DOMContentLoaded', async () => {
+  await initializeApp();
+});
+
+async function initializeApp() {
+  const fileInput = document.getElementById('asset-file-input');
+  if (fileInput) {
+    fileInput.addEventListener('change', handleAssetFileSelect);
+  }
+
+  await hydrateConfig();
   renderAll();
   buildSettingsUI();
   bindHotspots();
-});
+}
+
+async function hydrateConfig() {
+  const loadedFromServer = await loadFromServer();
+  if (!loadedFromServer) {
+    loadFromStorage();
+    affection = getStoredAffection();
+  }
+}
 
 function renderAll() {
   applyTheme();
   applyCharacterLayout();
   updateAffectionBar();
   document.getElementById('char-name-display').textContent = cfg.name;
+  updateStorageModeNotice();
 }
 
 /* =============================================
-   localStorage
+   저장소 / 서버 연동
    ============================================= */
-function loadFromStorage() {
-  const saved = localStorage.getItem('charInteract_config');
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      // deep merge
-      cfg = deepMerge(JSON.parse(JSON.stringify(DEFAULT_CONFIG)), parsed);
-    } catch(e) { cfg = JSON.parse(JSON.stringify(DEFAULT_CONFIG)); }
+async function loadFromServer() {
+  try {
+    const res = await fetch(`${API_BASE}/config`, {
+      headers: { 'Accept': 'application/json' }
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const data = await res.json();
+    if (data && data.config) {
+      cfg = deepMerge(JSON.parse(JSON.stringify(DEFAULT_CONFIG)), data.config);
+      affection = Number.isFinite(Number(data.affection)) ? Number(data.affection) : cfg.initAffection;
+      persistenceMode = 'server';
+      return true;
+    }
+
+    persistenceMode = 'server';
+    cfg = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+    affection = cfg.initAffection;
+    return true;
+  } catch (error) {
+    console.info('서버 저장소를 사용할 수 없어 브라우저 저장소를 사용합니다.', error);
+    persistenceMode = 'browser';
+    return false;
   }
 }
 
-function saveToStorage() {
-  localStorage.setItem('charInteract_config', JSON.stringify(cfg));
+function loadFromStorage() {
+  const saved = localStorage.getItem(STORAGE_KEYS.config);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      cfg = deepMerge(JSON.parse(JSON.stringify(DEFAULT_CONFIG)), parsed);
+    } catch (error) {
+      console.warn('localStorage 설정을 읽지 못했습니다.', error);
+      cfg = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+    }
+  }
+}
+
+function saveLocalSnapshot() {
+  try {
+    localStorage.setItem(STORAGE_KEYS.config, JSON.stringify(cfg));
+    localStorage.setItem(STORAGE_KEYS.affection, String(affection));
+    return true;
+  } catch (error) {
+    console.error('브라우저 저장 실패', error);
+    showToast('브라우저 저장 공간이 부족합니다. 서버 모드 배포를 권장합니다.');
+    return false;
+  }
+}
+
+function saveToStorage(options = {}) {
+  saveLocalSnapshot();
+  if (persistenceMode === 'server') {
+    queueServerStateSave({ immediate: options.immediate !== false });
+  }
 }
 
 function getStoredAffection() {
-  const v = localStorage.getItem('charInteract_affection');
-  return v !== null ? parseInt(v) : cfg.initAffection;
+  const v = localStorage.getItem(STORAGE_KEYS.affection);
+  if (v === null) return cfg.initAffection;
+  const parsed = parseInt(v, 10);
+  return Number.isFinite(parsed) ? parsed : cfg.initAffection;
 }
 
 function saveAffection() {
-  localStorage.setItem('charInteract_affection', String(affection));
+  try {
+    localStorage.setItem(STORAGE_KEYS.affection, String(affection));
+  } catch (error) {
+    console.error('호감도 로컬 저장 실패', error);
+  }
+
+  if (persistenceMode === 'server') {
+    queueServerStateSave();
+  }
+}
+
+function queueServerStateSave({ immediate = false } = {}) {
+  if (persistenceMode !== 'server') return;
+  clearTimeout(serverSaveTimer);
+
+  if (immediate) {
+    void persistServerState();
+    return;
+  }
+
+  serverSaveTimer = setTimeout(() => {
+    void persistServerState();
+  }, 250);
+}
+
+async function persistServerState() {
+  if (persistenceMode !== 'server' || isSavingToServer) return;
+
+  isSavingToServer = true;
+  try {
+    const res = await fetch(`${API_BASE}/config`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({ config: cfg, affection })
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  } catch (error) {
+    console.error('서버 저장 실패', error);
+    showToast('서버 저장에 실패했습니다. 잠시 후 다시 시도해주세요.');
+  } finally {
+    isSavingToServer = false;
+  }
 }
 
 function deepMerge(target, source) {
@@ -165,6 +283,19 @@ function deepMerge(target, source) {
     }
   }
   return target;
+}
+
+function updateStorageModeNotice() {
+  const notice = document.getElementById('storage-mode-notice');
+  if (!notice) return;
+
+  if (persistenceMode === 'server') {
+    notice.className = 'storage-mode-notice server';
+    notice.innerHTML = '<i class="fas fa-server"></i><span><strong>서버 저장 모드</strong> · 업로드한 파일과 설정이 서버 디스크에 저장됩니다. 배포 시 <code>data</code> 와 <code>uploads</code> 폴더를 유지하면 계속 보존됩니다.</span>';
+  } else {
+    notice.className = 'storage-mode-notice browser';
+    notice.innerHTML = '<i class="fas fa-hard-drive"></i><span><strong>브라우저 저장 모드</strong> · 지금은 localStorage로 동작합니다. 정식 배포 시 Node 서버로 실행하면 파일 업로드가 서버에 보존됩니다.</span>';
+  }
 }
 
 /* =============================================
@@ -197,25 +328,22 @@ function applyCharacterLayout() {
   const imgEl = document.getElementById('character-img');
   const msgEl = document.getElementById('no-image-message');
 
-  wrap.style.width  = im.width  + 'px';
-  wrap.style.height = im.height + 'px';
+  wrap.style.width = `${im.width}px`;
+  wrap.style.height = `${im.height}px`;
   wrap.style.alignItems = im.valign;
 
-  // 스케일
-  imgEl.style.transform = `scale(${im.scale})`;
   imgEl.style.position = 'absolute';
-  imgEl.style.left = im.x + '%';
-  imgEl.style.top  = im.y + '%';
+  imgEl.style.left = `${im.x}%`;
+  imgEl.style.top = `${im.y}%`;
   imgEl.style.transform = `translate(-50%, -50%) scale(${im.scale})`;
 
-  // 이미지 표시
-  const emotionUrl = cfg.emotionImages[currentEmotion] || cfg.emotionImages['normal'] || '';
-
+  const emotionUrl = cfg.emotionImages[currentEmotion] || cfg.emotionImages.normal || '';
   if (emotionUrl) {
     imgEl.src = emotionUrl;
     imgEl.classList.add('visible');
     msgEl.classList.remove('show');
   } else {
+    imgEl.removeAttribute('src');
     imgEl.classList.remove('visible');
     msgEl.classList.add('show');
   }
@@ -229,28 +357,35 @@ function applyCharacterLayout() {
 function renderHotspots() {
   const overlay = document.getElementById('hotspot-overlay');
   overlay.innerHTML = '';
+
   cfg.hotspots.forEach((hs, idx) => {
     const div = document.createElement('div');
     div.className = 'hotspot';
-    div.dataset.part  = hs.part;
+    div.dataset.part = hs.part;
     div.dataset.label = hs.label;
-    div.dataset.idx   = idx;
+    div.dataset.idx = idx;
     div.style.cssText = `top:${hs.top}%;left:${hs.left}%;width:${hs.width}%;height:${hs.height}%;`;
     div.addEventListener('mouseenter', (e) => showBodyLabel(e, hs.label));
     div.addEventListener('mouseleave', hideBodyLabel);
     div.addEventListener('mousemove', moveBodyLabel);
-    div.addEventListener('click', (e) => { e.stopPropagation(); handleHotspotClick(hs.part, e); });
+    div.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handleHotspotClick(hs.part, e);
+    });
     overlay.appendChild(div);
   });
 }
 
-function bindHotspots() { /* 초기 바인딩은 renderHotspots에서 처리 */ }
+function bindHotspots() {
+  /* 초기 바인딩은 renderHotspots에서 처리 */
+}
 
 /* =============================================
    신체부위 클릭 처리
    ============================================= */
 function handleHotspotClick(part, event) {
   if (hotspotEditMode) return;
+
   const scripts = cfg.scripts[part];
   if (!scripts || scripts.length === 0) return;
 
@@ -258,21 +393,13 @@ function handleHotspotClick(part, event) {
   const entry = scripts[scriptIndex[part] % scripts.length];
   scriptIndex[part]++;
 
-  // 호감도
   changeAffection(entry.delta);
-
-  // 표정 변경
   setEmotion(entry.emotion || 'normal');
-
-  // 대사 출력
   typeDialogue(entry.text);
 
-  // 캐릭터 반응 애니메이션
   const meta = PART_META[part];
   const animClass = meta ? `react-${meta.anim}` : 'react-bounce';
   triggerCharAnim(animClass);
-
-  // 파티클
   spawnParticles(event.clientX, event.clientY, entry.delta);
 }
 
@@ -291,10 +418,10 @@ function updateAffectionBar() {
   const label = document.getElementById('affection-label');
   const status = document.getElementById('affection-status-text');
 
-  fill.style.width = affection + '%';
+  fill.style.width = `${affection}%`;
   label.textContent = affection;
 
-  const stage = AFFECTION_STAGES.find(s => affection >= s.min && affection <= s.max);
+  const stage = AFFECTION_STAGES.find((s) => affection >= s.min && affection <= s.max);
   if (stage) {
     status.textContent = stage.label;
     status.style.color = stage.color;
@@ -312,19 +439,18 @@ function setEmotion(emotion) {
 
   const imgEl = document.getElementById('character-img');
   const msgEl = document.getElementById('no-image-message');
-
-  const url = cfg.emotionImages[emotion] || cfg.emotionImages['normal'];
+  const url = cfg.emotionImages[emotion] || cfg.emotionImages.normal;
 
   if (url) {
     imgEl.src = url;
     imgEl.classList.add('visible');
     msgEl.classList.remove('show');
   } else {
+    imgEl.removeAttribute('src');
     imgEl.classList.remove('visible');
     msgEl.classList.add('show');
   }
 
-  // 3초 후 노멀로 복귀
   clearTimeout(window._emotionTimer);
   window._emotionTimer = setTimeout(() => {
     setEmotion('normal');
@@ -333,9 +459,10 @@ function setEmotion(emotion) {
 
 function applySVGEmotion(emotion) {
   const svg = document.getElementById('character-svg');
-  // 볼터치 ellipse
+  if (!svg) return;
+
   const blushes = svg.querySelectorAll('ellipse[fill="#ffb6c1"]');
-  blushes.forEach(b => {
+  blushes.forEach((b) => {
     if (emotion === 'blush' || emotion === 'shy') {
       b.style.opacity = '0.7';
       b.setAttribute('fill', '#ff8fa0');
@@ -354,9 +481,10 @@ function typeDialogue(text) {
   if (typingTimer) clearInterval(typingTimer);
   el.textContent = '';
   let i = 0;
+
   typingTimer = setInterval(() => {
     el.textContent += text[i];
-    i++;
+    i += 1;
     if (i >= text.length) clearInterval(typingTimer);
   }, 38);
 }
@@ -366,8 +494,8 @@ function typeDialogue(text) {
    ============================================= */
 function triggerCharAnim(cls) {
   const wrap = document.getElementById('character-img-wrap');
-  wrap.classList.remove('react-bounce','react-shake');
-  void wrap.offsetWidth; // reflow
+  wrap.classList.remove('react-bounce', 'react-shake');
+  void wrap.offsetWidth;
   wrap.classList.add(cls);
   setTimeout(() => wrap.classList.remove(cls), 500);
 }
@@ -375,20 +503,21 @@ function triggerCharAnim(cls) {
 /* =============================================
    파티클
    ============================================= */
-const PARTICLES_POS = ['💕','✨','💖','🌸','💗'];
-const PARTICLES_NEG = ['💢','😣','💦','⚡','😓'];
+const PARTICLES_POS = ['💕', '✨', '💖', '🌸', '💗'];
+const PARTICLES_NEG = ['💢', '😣', '💦', '⚡', '😓'];
 
 function spawnParticles(x, y, delta) {
   const container = document.getElementById('particle-container');
   const pool = delta >= 0 ? PARTICLES_POS : PARTICLES_NEG;
   const count = Math.min(Math.abs(delta), 5) + 2;
-  for (let i = 0; i < count; i++) {
+
+  for (let i = 0; i < count; i += 1) {
     const p = document.createElement('div');
     p.className = 'particle';
     p.textContent = pool[Math.floor(Math.random() * pool.length)];
-    p.style.left = (x + (Math.random()-0.5)*60) + 'px';
-    p.style.top  = (y + (Math.random()-0.5)*30) + 'px';
-    p.style.animationDelay = (Math.random()*0.3) + 's';
+    p.style.left = `${x + (Math.random() - 0.5) * 60}px`;
+    p.style.top = `${y + (Math.random() - 0.5) * 30}px`;
+    p.style.animationDelay = `${Math.random() * 0.3}s`;
     container.appendChild(p);
     setTimeout(() => p.remove(), 1500);
   }
@@ -403,13 +532,15 @@ function showBodyLabel(e, label) {
   el.classList.add('visible');
   moveBodyLabel(e);
 }
+
 function hideBodyLabel() {
   document.getElementById('body-part-label').classList.remove('visible');
 }
+
 function moveBodyLabel(e) {
   const el = document.getElementById('body-part-label');
-  el.style.left = (e.clientX + 14) + 'px';
-  el.style.top  = (e.clientY - 30) + 'px';
+  el.style.left = `${e.clientX + 14}px`;
+  el.style.top = `${e.clientY - 30}px`;
 }
 
 /* =============================================
@@ -424,6 +555,114 @@ function showToast(msg) {
 }
 
 /* =============================================
+   업로드 유틸리티
+   ============================================= */
+function triggerAssetUpload(kind, key = '') {
+  pendingUploadTarget = { kind, key };
+  const fileInput = document.getElementById('asset-file-input');
+  if (fileInput) fileInput.click();
+}
+
+async function handleAssetFileSelect(event) {
+  const file = event.target.files && event.target.files[0];
+  const target = pendingUploadTarget;
+  pendingUploadTarget = null;
+
+  if (!file || !target) {
+    event.target.value = '';
+    return;
+  }
+
+  try {
+    let assetUrl = '';
+    if (persistenceMode === 'server') {
+      assetUrl = await uploadAssetToServer(file);
+    } else {
+      assetUrl = await readFileAsDataURL(file);
+    }
+
+    applyUploadedAsset(target, assetUrl);
+    showToast(
+      persistenceMode === 'server'
+        ? '이미지가 서버에 업로드되고 저장되었습니다 ✓'
+        : '이미지가 브라우저 저장소에 저장되었습니다 ✓'
+    );
+  } catch (error) {
+    console.error('업로드 실패', error);
+    showToast('이미지 업로드에 실패했습니다.');
+  } finally {
+    event.target.value = '';
+  }
+}
+
+async function uploadAssetToServer(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(`${API_BASE}/upload`, {
+    method: 'POST',
+    body: formData
+  });
+
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  if (!data || !data.url) throw new Error('업로드 URL을 받지 못했습니다.');
+  return data.url;
+}
+
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function applyUploadedAsset(target, url) {
+  if (target.kind === 'emotion') {
+    cfg.emotionImages[target.key] = url;
+    const input = document.getElementById(`em-${target.key}`);
+    const preview = document.getElementById(`em-preview-${target.key}`);
+    if (input) input.value = url;
+    if (preview) preview.src = url;
+    applyCharacterLayout();
+  }
+
+  if (target.kind === 'themeBg') {
+    cfg.theme.bgImage = url;
+    const input = document.getElementById('cfg-bg-img');
+    if (input) input.value = url;
+    applyTheme();
+  }
+
+  saveToStorage();
+}
+
+function clearImageField(kind, key = '') {
+  if (kind === 'emotion') {
+    cfg.emotionImages[key] = '';
+    const input = document.getElementById(`em-${key}`);
+    const preview = document.getElementById(`em-preview-${key}`);
+    if (input) input.value = '';
+    if (preview) preview.removeAttribute('src');
+    applyCharacterLayout();
+    saveToStorage();
+    showToast('감정 이미지를 제거했습니다.');
+    return;
+  }
+
+  if (kind === 'themeBg') {
+    cfg.theme.bgImage = '';
+    const input = document.getElementById('cfg-bg-img');
+    if (input) input.value = '';
+    applyTheme();
+    saveToStorage();
+    showToast('배경 이미지를 제거했습니다.');
+  }
+}
+
+/* =============================================
    설정 패널 UI 빌드
    ============================================= */
 function buildSettingsUI() {
@@ -431,21 +670,22 @@ function buildSettingsUI() {
   buildScriptsUI();
   buildHotspotSettingsUI();
   loadSettingsValues();
+  updateStorageModeNotice();
 }
 
 function loadSettingsValues() {
   document.getElementById('cfg-name').value = cfg.name;
   document.getElementById('cfg-init-affection').value = cfg.initAffection;
-  document.getElementById('cfg-img-width').value  = cfg.image.width;
+  document.getElementById('cfg-img-width').value = cfg.image.width;
   document.getElementById('cfg-img-height').value = cfg.image.height;
-  document.getElementById('cfg-img-x').value     = cfg.image.x;
-  document.getElementById('cfg-img-y').value     = cfg.image.y;
+  document.getElementById('cfg-img-x').value = cfg.image.x;
+  document.getElementById('cfg-img-y').value = cfg.image.y;
   document.getElementById('cfg-img-scale').value = cfg.image.scale;
   document.getElementById('cfg-img-valign').value = cfg.image.valign;
-  document.getElementById('cfg-bg-img').value    = cfg.theme.bgImage;
-  document.getElementById('cfg-bg-color').value  = cfg.theme.bgColor;
+  document.getElementById('cfg-bg-img').value = cfg.theme.bgImage;
+  document.getElementById('cfg-bg-color').value = cfg.theme.bgColor;
   document.getElementById('cfg-main-color').value = cfg.theme.mainColor;
-  document.getElementById('cfg-sub-color').value  = cfg.theme.subColor;
+  document.getElementById('cfg-sub-color').value = cfg.theme.subColor;
   document.getElementById('cfg-text-color').value = cfg.theme.textColor;
 }
 
@@ -453,18 +693,40 @@ function loadSettingsValues() {
 function buildEmotionImgUI() {
   const wrap = document.getElementById('emotion-imgs-wrap');
   wrap.innerHTML = '';
-  const emotionNames = { normal:'기본', happy:'행복', shy:'수줍음', blush:'쑥스러움', surprised:'놀람', sad:'슬픔' };
-  EMOTION_LIST.forEach(em => {
+
+  const emotionNames = {
+    normal: '기본',
+    happy: '행복',
+    shy: '수줍음',
+    blush: '쑥스러움',
+    surprised: '놀람',
+    sad: '슬픔'
+  };
+
+  EMOTION_LIST.forEach((em) => {
     const row = document.createElement('div');
     row.className = 'emotion-img-item';
     row.innerHTML = `
       <label style="min-width:64px;">${emotionNames[em]}</label>
-      <input type="text" id="em-${em}" placeholder="이미지 URL" value="${cfg.emotionImages[em] || ''}" />
-      <img class="emotion-img-preview" id="em-preview-${em}" src="${cfg.emotionImages[em] || ''}" alt="" />
+      <input type="text" id="em-${em}" placeholder="이미지 URL" />
+      <div class="emotion-img-actions">
+        <button type="button" class="btn-upload-image" onclick="triggerAssetUpload('emotion','${em}')">
+          <i class="fas fa-upload"></i> 업로드
+        </button>
+        <button type="button" class="btn-clear-image" onclick="clearImageField('emotion','${em}')">
+          <i class="fas fa-eraser"></i> 제거
+        </button>
+      </div>
+      <img class="emotion-img-preview" id="em-preview-${em}" alt="${emotionNames[em]} 미리보기" />
     `;
+
     wrap.appendChild(row);
+
     const input = row.querySelector(`#em-${em}`);
     const preview = row.querySelector(`#em-preview-${em}`);
+    input.value = cfg.emotionImages[em] || '';
+    if (cfg.emotionImages[em]) preview.src = cfg.emotionImages[em];
+
     input.addEventListener('input', () => {
       preview.src = input.value;
     });
@@ -476,7 +738,7 @@ function buildScriptsUI() {
   const container = document.getElementById('scripts-accordion');
   container.innerHTML = '';
 
-  Object.keys(PART_META).forEach(part => {
+  Object.keys(PART_META).forEach((part) => {
     const meta = PART_META[part];
     if (!cfg.scripts[part]) cfg.scripts[part] = [];
 
@@ -519,8 +781,10 @@ function buildScriptsUI() {
 function renderScriptItems(part) {
   const wrap = document.getElementById(`script-items-${part}`);
   if (!wrap) return;
+
   wrap.innerHTML = '';
   const scripts = cfg.scripts[part] || [];
+
   scripts.forEach((s, idx) => {
     const item = document.createElement('div');
     item.className = 'script-item';
@@ -529,14 +793,14 @@ function renderScriptItems(part) {
       <input type="number" min="-20" max="20" step="1"
              data-part="${part}" data-idx="${idx}" data-field="delta" value="${s.delta}" />
       <select data-part="${part}" data-idx="${idx}" data-field="emotion">
-        ${EMOTION_LIST.map(em => `<option value="${em}" ${em===s.emotion?'selected':''}>${em}</option>`).join('')}
+        ${EMOTION_LIST.map((em) => `<option value="${em}" ${em === s.emotion ? 'selected' : ''}>${em}</option>`).join('')}
       </select>
       <button class="btn-del-script" title="삭제" onclick="deleteScriptItem('${part}',${idx})">
         <i class="fas fa-trash"></i>
       </button>
     `;
-    // 변경 감지
-    item.querySelectorAll('[data-field]').forEach(el => {
+
+    item.querySelectorAll('[data-field]').forEach((el) => {
       el.addEventListener('change', syncScriptField);
       el.addEventListener('input', syncScriptField);
     });
@@ -547,10 +811,11 @@ function renderScriptItems(part) {
 function syncScriptField(e) {
   const el = e.target;
   const part = el.dataset.part;
-  const idx  = parseInt(el.dataset.idx);
+  const idx = parseInt(el.dataset.idx, 10);
   const field = el.dataset.field;
   if (!cfg.scripts[part] || !cfg.scripts[part][idx]) return;
-  if (field === 'delta') cfg.scripts[part][idx].delta = parseInt(el.value) || 0;
+
+  if (field === 'delta') cfg.scripts[part][idx].delta = parseInt(el.value, 10) || 0;
   else cfg.scripts[part][idx][field] = el.value;
 }
 
@@ -567,7 +832,7 @@ function deleteScriptItem(part, idx) {
 
 function toggleScriptSection(part) {
   const header = document.querySelector(`#script-sec-${part} .script-section-header`);
-  const body   = document.getElementById(`script-body-${part}`);
+  const body = document.getElementById(`script-body-${part}`);
   header.classList.toggle('open');
   body.classList.toggle('open');
 }
@@ -576,6 +841,7 @@ function toggleScriptSection(part) {
 function buildHotspotSettingsUI() {
   const list = document.getElementById('hotspot-settings-list');
   list.innerHTML = '';
+
   cfg.hotspots.forEach((hs, idx) => {
     const meta = PART_META[hs.part] || {};
     const row = document.createElement('div');
@@ -605,7 +871,8 @@ function buildHotspotSettingsUI() {
         </label>
       </div>
     `;
-    row.querySelectorAll('input[data-hsidx]').forEach(inp => {
+
+    row.querySelectorAll('input[data-hsidx]').forEach((inp) => {
       inp.addEventListener('input', syncHotspotField);
     });
     list.appendChild(row);
@@ -614,10 +881,9 @@ function buildHotspotSettingsUI() {
 
 function syncHotspotField(e) {
   const el = e.target;
-  const idx   = parseInt(el.dataset.hsidx);
+  const idx = parseInt(el.dataset.hsidx, 10);
   const field = el.dataset.field;
   cfg.hotspots[idx][field] = parseFloat(el.value) || 0;
-  // 실시간 핫스팟 반영
   renderHotspots();
   if (hotspotEditMode) renderHotspotEditOverlay();
 }
@@ -670,13 +936,12 @@ function renderHotspotEditOverlay() {
     resizeHandle.className = 'hs-resize-handle';
     el.appendChild(resizeHandle);
 
-    // 드래그: 이동
     el.addEventListener('mousedown', (e) => {
       if (e.target === resizeHandle) return;
       e.preventDefault();
       startDrag(e, idx, 'move', wrap);
     });
-    // 드래그: 리사이즈
+
     resizeHandle.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -692,24 +957,25 @@ function startDrag(e, idx, mode, wrapEl) {
   const rect = wrapEl.getBoundingClientRect();
   const startX = e.clientX;
   const startY = e.clientY;
-  const origTop   = cfg.hotspots[idx].top;
-  const origLeft  = cfg.hotspots[idx].left;
-  const origW     = cfg.hotspots[idx].width;
-  const origH     = cfg.hotspots[idx].height;
+  const origTop = cfg.hotspots[idx].top;
+  const origLeft = cfg.hotspots[idx].left;
+  const origW = cfg.hotspots[idx].width;
+  const origH = cfg.hotspots[idx].height;
 
   const onMove = (em) => {
     const dx = em.clientX - startX;
     const dy = em.clientY - startY;
-    const dxPct = (dx / rect.width)  * 100;
+    const dxPct = (dx / rect.width) * 100;
     const dyPct = (dy / rect.height) * 100;
 
     if (mode === 'move') {
-      cfg.hotspots[idx].top  = Math.max(0, Math.min(95, origTop  + dyPct));
+      cfg.hotspots[idx].top = Math.max(0, Math.min(95, origTop + dyPct));
       cfg.hotspots[idx].left = Math.max(-20, Math.min(95, origLeft + dxPct));
     } else {
-      cfg.hotspots[idx].width  = Math.max(5, Math.min(100, origW + dxPct));
+      cfg.hotspots[idx].width = Math.max(5, Math.min(100, origW + dxPct));
       cfg.hotspots[idx].height = Math.max(5, Math.min(100, origH + dyPct));
     }
+
     renderHotspots();
     renderHotspotEditOverlay();
     updateHotspotSettingsRow(idx);
@@ -729,7 +995,8 @@ function updateHotspotSettingsRow(idx) {
   const hs = cfg.hotspots[idx];
   const row = document.getElementById(`hs-row-${idx}`);
   if (!row) return;
-  ['top','left','width','height'].forEach(f => {
+
+  ['top', 'left', 'width', 'height'].forEach((f) => {
     const inp = row.querySelector(`[data-field="${f}"]`);
     if (inp) inp.value = Math.round(hs[f] * 10) / 10;
   });
@@ -739,33 +1006,26 @@ function updateHotspotSettingsRow(idx) {
    설정 저장
    ============================================= */
 function saveSettings() {
-  // 기본
   cfg.name = document.getElementById('cfg-name').value || '캐릭터';
-  cfg.initAffection = parseInt(document.getElementById('cfg-init-affection').value) || 50;
+  cfg.initAffection = parseInt(document.getElementById('cfg-init-affection').value, 10) || 50;
 
-  // 이미지
-  cfg.image.width  = parseInt(document.getElementById('cfg-img-width').value)  || 320;
-  cfg.image.height = parseInt(document.getElementById('cfg-img-height').value) || 600;
-  cfg.image.x      = parseFloat(document.getElementById('cfg-img-x').value)    || 50;
-  cfg.image.y      = parseFloat(document.getElementById('cfg-img-y').value)    || 50;
-  cfg.image.scale  = parseFloat(document.getElementById('cfg-img-scale').value) || 1;
+  cfg.image.width = parseInt(document.getElementById('cfg-img-width').value, 10) || 320;
+  cfg.image.height = parseInt(document.getElementById('cfg-img-height').value, 10) || 600;
+  cfg.image.x = parseFloat(document.getElementById('cfg-img-x').value) || 50;
+  cfg.image.y = parseFloat(document.getElementById('cfg-img-y').value) || 50;
+  cfg.image.scale = parseFloat(document.getElementById('cfg-img-scale').value) || 1;
   cfg.image.valign = document.getElementById('cfg-img-valign').value;
 
-  // 감정 이미지
-  EMOTION_LIST.forEach(em => {
+  EMOTION_LIST.forEach((em) => {
     const inp = document.getElementById(`em-${em}`);
     if (inp) cfg.emotionImages[em] = inp.value.trim();
   });
 
-  // 테마
-  cfg.theme.bgImage   = document.getElementById('cfg-bg-img').value.trim();
-  cfg.theme.bgColor   = document.getElementById('cfg-bg-color').value;
+  cfg.theme.bgImage = document.getElementById('cfg-bg-img').value.trim();
+  cfg.theme.bgColor = document.getElementById('cfg-bg-color').value;
   cfg.theme.mainColor = document.getElementById('cfg-main-color').value;
-  cfg.theme.subColor  = document.getElementById('cfg-sub-color').value;
+  cfg.theme.subColor = document.getElementById('cfg-sub-color').value;
   cfg.theme.textColor = document.getElementById('cfg-text-color').value;
-
-  // 스크립트는 이미 실시간 syncScriptField에서 동기화됨
-  // 핫스팟도 이미 동기화됨
 
   saveToStorage();
   renderAll();
@@ -779,7 +1039,6 @@ function saveSettings() {
 function openSettings() {
   buildSettingsUI();
   document.getElementById('settings-overlay').classList.add('open');
-  // 핫스팟 편집 모드 리셋
   if (hotspotEditMode) toggleHotspotEditMode();
 }
 
@@ -795,8 +1054,8 @@ function closeSettingsOutside(e) {
    탭 전환
    ============================================= */
 function switchTab(tabId, btn) {
-  document.querySelectorAll('.stab').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.stab-content').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.stab').forEach((b) => b.classList.remove('active'));
+  document.querySelectorAll('.stab-content').forEach((c) => c.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById(`tab-${tabId}`).classList.add('active');
 }

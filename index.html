@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AffinityHub</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- ========== 파티클 컨테이너 ========== -->
+<div id="particle-container"></div>
+
+<!-- ========== 배경 오버레이 ========== -->
+<div id="bg-overlay"></div>
+
+<!-- ========== 메인 래퍼 ========== -->
+<div id="app-wrapper">
+
+  <!-- 좌상단 버튼 -->
+  <div id="top-left-btns">
+    <button id="btn-settings" title="설정" onclick="openSettings()">
+      <i class="fas fa-cog"></i>
+    </button>
+    <button id="btn-reset" title="호감도 초기화" onclick="confirmReset()">
+      <i class="fas fa-undo"></i>
+    </button>
+  </div>
+
+  <!-- 우상단 호감도 바 -->
+  <div id="affection-bar-wrap">
+    <i class="fas fa-heart" id="heart-icon"></i>
+    <div id="affection-track">
+      <div id="affection-fill"></div>
+      <span id="affection-label">50</span>
+    </div>
+    <span id="affection-status-text">보통</span>
+  </div>
+
+  <!-- ========== 캐릭터 영역 ========== -->
+  <div id="character-container">
+    <!-- 캐릭터 이미지 (위치/크기 조절 가능) -->
+    <div id="character-img-wrap">
+      <img id="character-img" src="" alt="캐릭터" draggable="false" />
+
+
+      <!-- ===== 핫스팟 오버레이 ===== -->
+      <div id="hotspot-overlay">
+        <!-- 각 핫스팟: data-part, data-label, style(top/left/width/height) -->
+        <div class="hotspot" data-part="head"     data-label="머리"  style="top:0%;   left:22%; width:56%; height:27%;"></div>
+        <div class="hotspot" data-part="shoulder" data-label="어깨"  style="top:35%;  left:5%;  width:90%; height:14%;"></div>
+        <div class="hotspot" data-part="chest"    data-label="가슴"  style="top:36%;  left:20%; width:60%; height:18%;"></div>
+        <div class="hotspot" data-part="waist"    data-label="허리"  style="top:54%;  left:22%; width:56%; height:13%;"></div>
+        <div class="hotspot" data-part="hand"     data-label="손"    style="top:47%;  left:0%;  width:20%; height:16%;"></div>
+        <div class="hotspot hs-right" data-part="hand" data-label="손" style="top:47%; left:80%; width:20%; height:16%;"></div>
+        <div class="hotspot" data-part="leg"      data-label="다리"  style="top:78%;  left:15%; width:70%; height:22%;"></div>
+      </div>
+
+      <!-- 핫스팟 편집 모드용 오버레이 -->
+      <div id="hotspot-edit-overlay" style="display:none;"></div>
+    </div>
+
+    <!-- 신체부위 포인터 라벨 -->
+    <div id="body-part-label"></div>
+  </div>
+  <div id="no-image-message" class="no-img-msg">
+    캐릭터 이미지를 설정하세요
+  </div>
+  <!-- ========== 대화 박스 ========== -->
+  <div id="dialogue-area">
+    <div id="dialogue-name-tab"><span id="char-name-display">캐릭터</span></div>
+    <div id="dialogue-box">
+      <p id="dialogue-text">캐릭터를 클릭해보세요.</p>
+    </div>
+  </div>
+
+  <!-- 호감도 변화 토스트 -->
+  <div id="affection-toast"></div>
+</div>
+
+<!-- ========================================
+     설정 패널 (모달)
+     ======================================== -->
+<div id="settings-overlay" onclick="closeSettingsOutside(event)">
+  <div id="settings-panel">
+    <div id="settings-header">
+      <h2><i class="fas fa-cog"></i> 설정</h2>
+      <button onclick="closeSettings()" title="닫기"><i class="fas fa-times"></i></button>
+    </div>
+
+    <!-- 탭 -->
+    <div id="settings-tabs">
+      <button class="stab active" onclick="switchTab('basic',this)">기본</button>
+      <button class="stab" onclick="switchTab('images',this)">이미지</button>
+      <button class="stab" onclick="switchTab('scripts',this)">스크립트</button>
+      <button class="stab" onclick="switchTab('hotspots',this)">핫스팟</button>
+      <button class="stab" onclick="switchTab('theme',this)">테마</button>
+    </div>
+
+    <!-- ---- 기본 탭 ---- -->
+    <div class="stab-content active" id="tab-basic">
+      <label>캐릭터 이름
+        <input type="text" id="cfg-name" placeholder="캐릭터 이름" />
+      </label>
+      <label>초기 호감도 (0~100)
+        <input type="number" id="cfg-init-affection" min="0" max="100" value="50" />
+      </label>
+    </div>
+
+    <!-- ---- 이미지 탭 ---- -->
+    <div class="stab-content" id="tab-images">
+      <p class="stab-desc">각 감정 상태별 이미지 URL을 입력하세요. 비워두면 기본 SVG를 사용합니다.</p>
+
+      <div class="img-size-row">
+        <label>이미지 너비
+          <input type="number" id="cfg-img-width" min="80" max="800" step="10" value="320" />px
+        </label>
+        <label>이미지 높이
+          <input type="number" id="cfg-img-height" min="100" max="1000" step="10" value="600" />px
+        </label>
+      </div>
+      <div class="img-size-row">
+        <label>X 위치 (좌로부터 %)
+          <input type="number" id="cfg-img-x" min="-200" max="200" step="1" value="50" />%
+        </label>
+        <label>Y 위치 (위로부터 %)
+          <input type="number" id="cfg-img-y" min="-200" max="200" step="1" value="50" />%
+        </label>
+      </div>
+      <div class="img-size-row">
+        <label>확대 배율
+          <input type="number" id="cfg-img-scale" min="0.3" max="3" step="0.05" value="1" />x
+        </label>
+        <label>수직 정렬
+          <select id="cfg-img-valign">
+            <option value="flex-end">하단 정렬</option>
+            <option value="center">중앙 정렬</option>
+            <option value="flex-start">상단 정렬</option>
+          </select>
+        </label>
+      </div>
+
+      <hr/>
+      <div id="emotion-imgs-wrap"></div>
+    </div>
+
+    <!-- ---- 스크립트 탭 ---- -->
+    <div class="stab-content" id="tab-scripts">
+      <p class="stab-desc">신체부위별 대사, 호감도 변화량, 표정을 설정하세요.</p>
+      <div id="scripts-accordion"></div>
+    </div>
+
+    <!-- ---- 핫스팟 탭 ---- -->
+    <div class="stab-content" id="tab-hotspots">
+      <p class="stab-desc">각 신체부위 핫스팟의 위치(top·left)와 크기(width·height)를 퍼센트(%)로 조정하세요.</p>
+      <div class="hotspot-preview-row">
+        <button class="hs-edit-toggle" id="btn-hs-edit" onclick="toggleHotspotEditMode()">
+          <i class="fas fa-crosshairs"></i> 핫스팟 편집 모드 켜기
+        </button>
+        <span id="hs-edit-tip" style="display:none;color:#e87c8d;font-size:0.78rem;">캐릭터 이미지 위 핫스팟을 드래그하여 이동/크기 조절</span>
+      </div>
+      <div id="hotspot-settings-list"></div>
+    </div>
+
+    <!-- ---- 테마 탭 ---- -->
+    <div class="stab-content" id="tab-theme">
+      <label>배경 이미지 URL
+        <input type="text" id="cfg-bg-img" placeholder="https://..." />
+      </label>
+      <label>배경 단색
+        <input type="color" id="cfg-bg-color" value="#fff0f5" />
+      </label>
+      <label>메인 컬러
+        <input type="color" id="cfg-main-color" value="#e87c8d" />
+      </label>
+      <label>보조 컬러
+        <input type="color" id="cfg-sub-color" value="#ffb6c1" />
+      </label>
+      <label>텍스트 컬러
+        <input type="color" id="cfg-text-color" value="#5a3a3a" />
+      </label>
+    </div>
+
+    <div id="settings-footer">
+      <button id="btn-save-settings" onclick="saveSettings()">
+        <i class="fas fa-save"></i> 저장하기
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 초기화 확인 다이얼로그 ========== -->
+<div id="confirm-overlay" style="display:none;">
+  <div id="confirm-box">
+    <p>호감도를 초기값으로 초기화할까요?</p>
+    <div>
+      <button class="btn-confirm-yes" onclick="doReset()">초기화</button>
+      <button class="btn-confirm-no" onclick="cancelReset()">취소</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -42,39 +42,39 @@ const DEFAULT_CONFIG = {
   ],
   scripts: {
     head: [
-      { text: '머리를 만지지 마세요!', delta: -3, emotion: 'shy' },
-      { text: '앗, 머리 건드리면 안 돼요!', delta: -2, emotion: 'surprised' },
-      { text: '사실...머리 쓰다듬는 건 싫지 않아요.', delta: 5, emotion: 'blush' }
+      { text: '머리 클릭에 대한 반응1', delta: -3, emotion: 'shy' },
+      { text: '머리 클릭에 대한 반응2', delta: -2, emotion: 'surprised' },
+      { text: '머리 클릭에 대한 반응3', delta: 5, emotion: 'blush' }
     ],
     shoulder: [
-      { text: '어깨를 두드리시는 건가요?', delta: 2, emotion: 'happy' },
-      { text: '조심하세요, 간지러워요!', delta: 1, emotion: 'shy' },
-      { text: '어깨 짚지 마세요, 쑥스러워요.', delta: -1, emotion: 'blush' }
+      { text: '어깨 클릭에 대한 반응1', delta: 2, emotion: 'happy' },
+      { text: '어깨 클릭에 대한 반응2', delta: 1, emotion: 'shy' },
+      { text: '어깨 클릭에 대한 반응3', delta: -1, emotion: 'blush' }
     ],
     chest: [
-      { text: '거기는 안 돼요!!', delta: -8, emotion: 'surprised' },
-      { text: '무, 무례하세요!', delta: -5, emotion: 'sad' },
-      { text: '...왜 거기를 누르는 거예요?', delta: -3, emotion: 'shy' }
+      { text: '가슴 클릭에 대한 반응1', delta: -8, emotion: 'surprised' },
+      { text: '가슴 클릭에 대한 반응2', delta: -5, emotion: 'sad' },
+      { text: '가슴 클릭에 대한 반응3', delta: -3, emotion: 'shy' }
     ],
     waist: [
-      { text: '허리 부분은 좀 간지러워요.', delta: 1, emotion: 'shy' },
-      { text: '으음, 그곳은 약점이에요...', delta: 2, emotion: 'blush' },
-      { text: '왜 허리를 잡는 거예요?', delta: -2, emotion: 'surprised' }
+      { text: '허리 클릭에 대한 반응1', delta: 1, emotion: 'shy' },
+      { text: '허리 클릭에 대한 반응2', delta: 2, emotion: 'blush' },
+      { text: '허리 클릭에 대한 반응3', delta: -2, emotion: 'surprised' }
     ],
     handL: [
-      { text: '손을 잡아주시는 건가요?', delta: 4, emotion: 'happy' },
-      { text: '손이 따뜻하네요.', delta: 6, emotion: 'blush' },
-      { text: '어머, 손잡기예요?', delta: 3, emotion: 'happy' }
+      { text: '왼손 클릭에 대한 반응1', delta: 4, emotion: 'happy' },
+      { text: '왼손 클릭에 대한 반응2', delta: 6, emotion: 'blush' },
+      { text: '왼손 클릭에 대한 반응3', delta: 3, emotion: 'happy' }
     ],
     handR: [
-      { text: '반대편도 잡아주세요.', delta: 4, emotion: 'happy' },
-      { text: '손이 따뜻해서 좋아요.', delta: 5, emotion: 'blush' },
-      { text: '제 손이에요!', delta: 2, emotion: 'shy' }
+      { text: '오른손 클릭에 대한 반응1', delta: 4, emotion: 'happy' },
+      { text: '오른손 클릭에 대한 반응2', delta: 5, emotion: 'blush' },
+      { text: '오른손 클릭에 대한 반응3', delta: 2, emotion: 'shy' }
     ],
     leg: [
-      { text: '거기는 만지시면 안 돼요!', delta: -5, emotion: 'sad' },
-      { text: '조심해주세요...', delta: -3, emotion: 'shy' },
-      { text: '다리는 가리고 싶어요.', delta: -4, emotion: 'surprised' }
+      { text: '다리 클릭에 대한 반응1', delta: -5, emotion: 'sad' },
+      { text: '다리 클릭에 대한 반응2', delta: -3, emotion: 'shy' },
+      { text: '다리 클릭에 대한 반응3', delta: -4, emotion: 'surprised' }
     ]
   }
 };
